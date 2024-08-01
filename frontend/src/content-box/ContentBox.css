@@ -1,0 +1,96 @@
+/* ContentBox.css */
+.content-box {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative; /* Yeni buton için konumlandırma */
+}
+
+.content-box-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed; /* Sütun genişliklerinin eşit olmasını sağlar */
+}
+
+.content-box-table thead {
+  background-color: #f4f4f4;
+}
+
+.content-box-table th,
+.content-box-table td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+  word-wrap: break-word; /* Uzun kelimeleri kırar */
+}
+
+.content-box-table th {
+  font-weight: bold;
+}
+
+.content-box-actions {
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 3px;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+button:nth-of-type(2) {
+  background-color: #dc3545;
+}
+
+button:nth-of-type(2):hover {
+  background-color: #c82333;
+}
+
+.add-new-record-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 3px;
+  background-color: #28a745;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.add-new-record-button:hover {
+  left: 15px;
+  background-color: #218838;
+}
+
+.search-container {
+  margin-bottom: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.search-button {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 3px;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.search-button:hover {
+  background-color: #0056b3;
+}
