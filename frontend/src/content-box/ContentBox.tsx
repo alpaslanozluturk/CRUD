@@ -3,7 +3,6 @@ import Modal from "react-modal";
 import './ContentBox.css';
 import { GymRecord } from "../entities/GymRecord";
 import Pagination from "../pagination/Pagination"; // Pagination bileşenini içe aktar
-import Search from "../search/Search"; // Search bileşenini içe aktar
 
 // Modal'ın erişim elemanını ayarlayın
 Modal.setAppElement('#root');
@@ -16,16 +15,35 @@ interface ContentBoxProps {
     currentPage: number;
     rowsPerPage: number;
     onPageChange: (page: number) => void;
+    totalPages: number; // Toplam sayfa sayısını ekleyin
+    onSearch: () => void; // Arama fonksiyonunu ekleyin
+    searchResults: GymRecord[]; // Arama sonuçlarını ekleyin
+    searchCurrentPage: number;
+    searchTotalPages: number;
+    onSearchPageChange: (page: number) => void;
+    setIsSearchModalOpen: (isOpen: boolean) => void; // Modal açma/kapatma fonksiyonu
 }
 
-const ContentBox: React.FC<ContentBoxProps> = ({ onSubmitDelete, onSubmitUpdate, content, onAddNewRecord, currentPage, rowsPerPage, onPageChange }) => {
+const ContentBox: React.FC<ContentBoxProps> = ({
+    onSubmitDelete,
+    onSubmitUpdate,
+    content,
+    onAddNewRecord,
+    currentPage,
+    rowsPerPage,
+    onPageChange,
+    totalPages,
+    onSearch,
+    searchResults,
+    searchCurrentPage,
+    searchTotalPages,
+    onSearchPageChange,
+    setIsSearchModalOpen
+}) => {
     const [record, setRecord] = React.useState<GymRecord | null>(null);
     const [isModalOpen, setIsModalOpen] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState("");
-    const [isSearchModalOpen, setIsSearchModalOpen] = React.useState(false);
-    const [searchResults, setSearchResults] = React.useState<GymRecord[]>([]);
-    const [searchCurrentPage, setSearchCurrentPage] = React.useState(1);
-    const searchRowsPerPage = 10; // Sayfa başına veri satır sınırını 10 olarak güncelledik
+    const searchRowsPerPage = 10; // searchRowsPerPage değişkenini tanımlayın
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
@@ -49,27 +67,9 @@ const ContentBox: React.FC<ContentBoxProps> = ({ onSubmitDelete, onSubmitUpdate,
     };
 
     const handleSearch = () => {
-        const results = content.filter(record =>
-            record.exercise.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-        setSearchResults(results);
-        setSearchCurrentPage(1); // Arama sonrası ilk sayfaya dön
-        setIsSearchModalOpen(true); // Arama sonuçlarını modalda göster
+        onSearch();
+        setIsSearchModalOpen(true);
     };
-
-    // Sayfaya göre verileri filtrele
-    const startIndex = (currentPage - 1) * rowsPerPage;
-    const currentRecords = content.slice(startIndex, startIndex + rowsPerPage); // Ana tablonun mevcut verileri
-    const totalPages = Math.ceil(content.length / rowsPerPage);
-
-    // Arama sonuçları için sayfalandırma
-    const searchStartIndex = (searchCurrentPage - 1) * searchRowsPerPage;
-    const currentSearchResults = searchResults.slice(searchStartIndex, searchStartIndex + searchRowsPerPage);
-    const totalSearchPages = Math.ceil(searchResults.length / searchRowsPerPage);
-
-    React.useEffect(() => {
-        setSearchResults(content);
-    }, [content]);
 
     return (
         <div className="content-box">
@@ -99,10 +99,10 @@ const ContentBox: React.FC<ContentBoxProps> = ({ onSubmitDelete, onSubmitUpdate,
                         </tr>
                     </thead>
                     <tbody>
-                        {currentRecords.length > 0 ? (
-                            currentRecords.map((record, index) => (
+                        {content.length > 0 ? (
+                            content.map((record, index) => (
                                 <tr key={record.id}>
-                                    <td>{startIndex + index + 1}</td>
+                                    <td>{(currentPage - 1) * rowsPerPage + index + 1}</td>
                                     <td>{record.exercise}</td>
                                     <td>{record.weight}</td>
                                     <td>{formatDate(record.date.toString())}</td>
@@ -125,10 +125,10 @@ const ContentBox: React.FC<ContentBoxProps> = ({ onSubmitDelete, onSubmitUpdate,
                     onPageChange={onPageChange}
                 />
             </div>
-            
+
             {/* Arama Sonuçları Modalı */}
             <Modal
-                isOpen={isSearchModalOpen}
+                isOpen={true}
                 onRequestClose={() => setIsSearchModalOpen(false)}
                 contentLabel="Arama Sonuçları"
                 style={{
@@ -152,7 +152,7 @@ const ContentBox: React.FC<ContentBoxProps> = ({ onSubmitDelete, onSubmitUpdate,
                 }}
             >
                 <h2>Arama Sonuçları</h2>
-                {currentSearchResults.length > 0 ? (
+                {searchResults.length > 0 ? (
                     <table className="content-box-table">
                         <thead>
                             <tr>
@@ -163,9 +163,9 @@ const ContentBox: React.FC<ContentBoxProps> = ({ onSubmitDelete, onSubmitUpdate,
                             </tr>
                         </thead>
                         <tbody>
-                            {currentSearchResults.map((record, index) => (
+                            {searchResults.map((record, index) => (
                                 <tr key={record.id}>
-                                    <td>{searchStartIndex + index + 1}</td>
+                                    <td>{(searchCurrentPage - 1) * searchRowsPerPage + index + 1}</td>
                                     <td>{record.exercise}</td>
                                     <td>{record.weight}</td>
                                     <td>{formatDate(record.date.toString())}</td>
@@ -178,8 +178,8 @@ const ContentBox: React.FC<ContentBoxProps> = ({ onSubmitDelete, onSubmitUpdate,
                 )}
                 <Pagination
                     currentPage={searchCurrentPage}
-                    totalPages={totalSearchPages}
-                    onPageChange={setSearchCurrentPage}
+                    totalPages={searchTotalPages}
+                    onPageChange={onSearchPageChange}
                 />
                 <button className="close-button" onClick={() => setIsSearchModalOpen(false)}>Kapat</button>
             </Modal>

@@ -1,4 +1,3 @@
-// src/pagination/Pagination.tsx
 import React from "react";
 import './Pagination.css';
 
@@ -54,7 +53,7 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
             </button>
             <button
                 className="pagination-button"
-                onClick={() => handlePageChange(totalPages)}
+                onClick={() => handlePageChange(totalPages)} // totalPages değerine git
                 disabled={currentPage === totalPages}
             >
                 Son
