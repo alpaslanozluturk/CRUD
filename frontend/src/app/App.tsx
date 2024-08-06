@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
 import './App.css';
 import VerticalContainer from '../vertical-container/VerticalContainer';
-import ContentBox from "src/content-box/ContentBox";
+import TransactionsContentBox from "src/content-box/TransactionsContentBox";
 import Modal from "react-modal";
 import { GymRecord } from '../entities/GymRecord';
-import Pagination from "src/pagination/Pagination";
 
 // Modal'ın erişim elemanını ayarlayın
 Modal.setAppElement('#root');
@@ -17,11 +16,16 @@ export function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const rowsPerPage = 5;
+  const [searchResults, setSearchResults] = useState<GymRecord[]>([]);
+  const [searchTotalPages, setSearchTotalPages] = useState(1);
 
   const fetchRecords = async (page: number, size: number) => {
     const response = await fetch(`http://localhost:8080/gym/records/page?page=${page}&size=${size}`);
     if (response.status === 200) {
       const data = await response.json();
+      data.content.forEach((record: GymRecord, index: number) => {
+        record.sequenceNumber = (page) * size + index + 1;
+      });
       setRecords(data.content);
       setTotalPages(data.totalPages);
     }
@@ -58,7 +62,7 @@ export function App() {
     });
     if (response.status === 200) {
       const data = await response.json();
-      setRecords(records.map(record => (record.id === data.id ? data : record)));
+      setRecords(records.map(record => (record.id === data.id ? { ...data, sequenceNumber: record.sequenceNumber } : record)));
     }
   };
 
@@ -79,12 +83,27 @@ export function App() {
     setCurrentPage(page);
   };
 
+  const handleSearch = async (query: string, page: number, rowsPerPage: number): Promise<{ results: GymRecord[], totalPages: number }> => {
+    const response = await fetch(`http://localhost:8080/gym/records/search?query=${query}&page=${page}&size=${rowsPerPage}`);
+    if (response.status === 200) {
+      const data = await response.json();
+      setSearchResults(data.content);
+      setSearchTotalPages(data.totalPages);
+      return { results: data.content, totalPages: data.totalPages };
+    }
+    return { results: [], totalPages: 0 };
+  };
+
+  const handleCloseSearchModal = () => {
+    setSearchResults([]);
+  };
+
   return (
     <div className="main-component">
       <VerticalContainer className="custom-vertical-container">
         <div className="content-box-container">
           <h2>Gym</h2>
-          <ContentBox
+          <TransactionsContentBox
             content={records}
             onSubmitUpdate={handleUpdateSubmit}
             onSubmitDelete={handleDeleteSubmit}
@@ -96,6 +115,8 @@ export function App() {
             totalPages={totalPages}
             setRecords={setRecords}
             records={records}
+            onSearch={handleSearch}
+            onCloseSearchModal={handleCloseSearchModal}
           />
         </div>
       </VerticalContainer>

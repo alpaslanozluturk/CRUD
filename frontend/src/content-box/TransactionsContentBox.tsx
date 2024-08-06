@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Modal from "react-modal";
 import './ContentBox.css';
 import { GymRecord } from "../entities/GymRecord";
@@ -8,11 +8,10 @@ import Search from "../search/Search";
 // Modal'ın erişim elemanını ayarlayın
 Modal.setAppElement('#root');
 
-interface ContentBoxProps {
+interface TransactionsContentBoxProps {
     onSubmitDelete: (id: number) => void;
     onSubmitUpdate: (record: GymRecord) => void;
     onCreateRecord: (exercise: string, weight: number) => Promise<GymRecord>;
-    onSearch: (query: string, page: number, rowsPerPage: number) => Promise<{ results: GymRecord[], totalPages: number }>;
     content: GymRecord[];
     onAddNewRecord?: () => void;
     currentPage: number;
@@ -21,14 +20,14 @@ interface ContentBoxProps {
     totalPages: number;
     setRecords: React.Dispatch<React.SetStateAction<GymRecord[]>>;
     records: GymRecord[];
+    onSearch: (query: string, page: number, rowsPerPage: number) => Promise<{ results: GymRecord[], totalPages: number }>;
     onCloseSearchModal: () => void;
 }
 
-const ContentBox: React.FC<ContentBoxProps> = ({
+const TransactionsContentBox: React.FC<TransactionsContentBoxProps> = ({
     onSubmitDelete,
     onSubmitUpdate,
     onCreateRecord,
-    onSearch,
     content,
     onAddNewRecord,
     currentPage,
@@ -37,6 +36,7 @@ const ContentBox: React.FC<ContentBoxProps> = ({
     totalPages,
     setRecords,
     records,
+    onSearch,
     onCloseSearchModal
 }) => {
     const [record, setRecord] = useState<GymRecord | null>(null);
@@ -49,6 +49,12 @@ const ContentBox: React.FC<ContentBoxProps> = ({
     const [searchTotalPages, setSearchTotalPages] = useState(1);
     const searchRowsPerPage = 10;
 
+    useEffect(() => {
+        content.forEach((record, index) => {
+            record.sequenceNumber = (currentPage - 1) * rowsPerPage + index + 1;
+        });
+    }, [content, currentPage, rowsPerPage]);
+
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
         const year = date.getFullYear();
@@ -57,22 +63,56 @@ const ContentBox: React.FC<ContentBoxProps> = ({
         return `${year}/${month}/${day}`;
     };
 
-    const handleSubmitDelete = (id: number) => {
+    const handleSubmitDelete = async (id: number) => {
         if (window.confirm("Egzersizi silmek istediğinizden emin misiniz?")) {
-            onSubmitDelete(id);
+            await onSubmitDelete(id);
+            const response = await fetch(`http://localhost:8080/gym/records/page?page=${currentPage - 1}&size=${rowsPerPage}`);
+            if (response.status === 200) {
+                const data = await response.json();
+                data.content.forEach((record: GymRecord, index: number) => {
+                    record.sequenceNumber = (currentPage - 1) * rowsPerPage + index + 1;
+                });
+                setRecords(data.content);
+            }
         }
     };
 
-    const handleSubmitUpdate = () => {
+    const handleSubmitUpdate = async () => {
         if (record) {
-            onSubmitUpdate(record);
+            await onSubmitUpdate(record);
+            const updatedRecords = await fetchRecords(currentPage - 1, rowsPerPage);
+            setRecords(updatedRecords);
             setIsModalOpen(false);
         }
     };
 
+    const fetchRecords = async (page: number, size: number) => {
+        const response = await fetch(`http://localhost:8080/gym/records/page?page=${page}&size=${size}`);
+        if (response.status === 200) {
+            const data = await response.json();
+            data.content.forEach((record: GymRecord, index: number) => {
+                record.sequenceNumber = (page) * size + index + 1;
+            });
+            return data.content;
+        }
+        return [];
+    };
+
+    const searchRecords = async (query: string, page: number, size: number): Promise<{ results: GymRecord[], totalPages: number }> => {
+        const response = await fetch(`http://localhost:8080/gym/records/search?query=${query}&page=${page}&size=${size}`);
+        if (response.status === 200) {
+            const data = await response.json();
+            return { results: data.content, totalPages: data.totalPages };
+        }
+        return { results: [], totalPages: 0 };
+    };
+
     const handleSearch = async (query: string, page: number, rowsPerPage: number): Promise<{ results: GymRecord[], totalPages: number }> => {
         try {
-            const data = await onSearch(query, page, rowsPerPage);
+            const data = await searchRecords(query, page, rowsPerPage);
+            data.results.forEach((record: GymRecord, index: number) => {
+                record.sequenceNumber = (page - 1) * rowsPerPage + index + 1;
+            });
             setSearchResults(data.results);
             setSearchTotalPages(data.totalPages);
             setSearchCurrentPage(page);
@@ -87,7 +127,10 @@ const ContentBox: React.FC<ContentBoxProps> = ({
     const handleSearchPageChange = async (page: number) => {
         try {
             const query = searchResults.length > 0 ? searchResults[0].exercise : "";
-            const data = await onSearch(query, page, searchRowsPerPage);
+            const data = await searchRecords(query, page, searchRowsPerPage);
+            data.results.forEach((record: GymRecord, index: number) => {
+                record.sequenceNumber = (page - 1) * searchRowsPerPage + index + 1;
+            });
             setSearchResults(data.results);
             setSearchCurrentPage(page);
         } catch (error) {
@@ -95,22 +138,9 @@ const ContentBox: React.FC<ContentBoxProps> = ({
         }
     };
 
-    const handleCreateSubmit = async () => {
-        try {
-            const newRecord = await onCreateRecord(newExercise, newWeight);
-            setRecords([...records, newRecord]);
-            setIsModalOpen(false);
-            setNewExercise('');
-            setNewWeight(0);
-        } catch (error) {
-            console.error("Error creating record:", error);
-        }
-    };
-
     const handleCloseSearchModal = () => {
         setIsSearchModalOpen(false);
         setSearchResults([]);
-        onCloseSearchModal();
     };
 
     return (
@@ -136,7 +166,7 @@ const ContentBox: React.FC<ContentBoxProps> = ({
                         {content.length > 0 ? (
                             content.map((record, index) => (
                                 <tr key={record.id}>
-                                    <td>{(currentPage - 1) * rowsPerPage + index + 1}</td>
+                                    <td>{record.sequenceNumber}</td>
                                     <td>{record.exercise}</td>
                                     <td>{record.weight}</td>
                                     <td>{formatDate(record.date.toString())}</td>
@@ -198,7 +228,7 @@ const ContentBox: React.FC<ContentBoxProps> = ({
                         <tbody>
                             {searchResults.map((record, index) => (
                                 <tr key={record.id}>
-                                    <td>{(searchCurrentPage - 1) * searchRowsPerPage + index + 1}</td>
+                                    <td>{record.sequenceNumber}</td>
                                     <td>{record.exercise}</td>
                                     <td>{record.weight}</td>
                                     <td>{formatDate(record.date.toString())}</td>
@@ -230,7 +260,7 @@ const ContentBox: React.FC<ContentBoxProps> = ({
                         marginRight: '-50%',
                         transform: 'translate(-50%, -50%)',
                         width: '400px',
-                        height: '150px',
+                        height: '300px',
                         padding: '20px',
                         borderRadius: '8px',
                         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)'
@@ -266,4 +296,4 @@ const ContentBox: React.FC<ContentBoxProps> = ({
     );
 };
 
-export default ContentBox;
+export default TransactionsContentBox;

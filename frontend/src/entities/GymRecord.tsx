@@ -3,4 +3,5 @@ export interface GymRecord {
     exercise: string;
     weight: number;
     date: string;
+    sequenceNumber?: number; 
 }
