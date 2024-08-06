@@ -14,10 +14,55 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
         }
     };
 
-    const pageNumbers = [];
-    for (let i = 1; i <= totalPages; i++) {
-        pageNumbers.push(i);
-    }
+    const renderPageNumbers = () => {
+        const pageNumbers = [];
+        const startPage = Math.max(currentPage - 2, 1);
+        const endPage = Math.min(currentPage + 2, totalPages);
+
+        if (startPage > 1) {
+            pageNumbers.push(
+                <button
+                    key={1}
+                    className={`pagination-button ${1 === currentPage ? 'active' : ''}`}
+                    onClick={() => handlePageChange(1)}
+                >
+                    1
+                </button>
+            );
+            if (startPage > 2) {
+                pageNumbers.push(<span key="start-ellipsis">...</span>);
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(
+                <button
+                    key={i}
+                    className={`pagination-button ${i === currentPage ? 'active' : ''}`}
+                    onClick={() => handlePageChange(i)}
+                >
+                    {i}
+                </button>
+            );
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                pageNumbers.push(<span key="end-ellipsis">...</span>);
+            }
+            pageNumbers.push(
+                <button
+                    key={totalPages}
+                    className={`pagination-button ${totalPages === currentPage ? 'active' : ''}`}
+                    onClick={() => handlePageChange(totalPages)}
+                >
+                    {totalPages}
+                </button>
+            );
+        }
+
+        return pageNumbers;
+    };
 
     return (
         <div className="pagination">
@@ -35,15 +80,7 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
             >
                 Önceki
             </button>
-            {pageNumbers.slice(Math.max(currentPage - 2, 0), Math.min(currentPage + 3, totalPages)).map(number => (
-                <button
-                    key={number}
-                    className={`pagination-button ${number === currentPage ? 'active' : ''}`}
-                    onClick={() => handlePageChange(number)}
-                >
-                    {number}
-                </button>
-            ))}
+            {renderPageNumbers()}
             <button
                 className="pagination-button"
                 onClick={() => handlePageChange(currentPage + 1)}
@@ -53,7 +90,7 @@ const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPage
             </button>
             <button
                 className="pagination-button"
-                onClick={() => handlePageChange(totalPages)} // totalPages değerine git
+                onClick={() => handlePageChange(totalPages)}
                 disabled={currentPage === totalPages}
             >
                 Son

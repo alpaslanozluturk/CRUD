@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import './App.css';
 import VerticalContainer from '../vertical-container/VerticalContainer';
 import ContentBox from "src/content-box/ContentBox";
@@ -10,123 +10,73 @@ import Pagination from "src/pagination/Pagination";
 Modal.setAppElement('#root');
 
 export function App() {
-  const [records, setRecords] = React.useState<GymRecord[]>([]);
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [newExercise, setNewExercise] = React.useState('');
-  const [newWeight, setNewWeight] = React.useState(0);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const [totalPages, setTotalPages] = React.useState(1);
+  const [records, setRecords] = useState<GymRecord[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newExercise, setNewExercise] = useState('');
+  const [newWeight, setNewWeight] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const rowsPerPage = 5;
 
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [searchResults, setSearchResults] = React.useState<GymRecord[]>([]);
-  const [isSearchModalOpen, setIsSearchModalOpen] = React.useState(false);
-  const [searchCurrentPage, setSearchCurrentPage] = React.useState(1);
-  const [searchTotalPages, setSearchTotalPages] = React.useState(1);
-  const searchRowsPerPage = 10;
-
-  const fetchRecords = (page: number, size: number) => {
-    fetch(`http://localhost:8080/gym/records/page?page=${page}&size=${size}`, {
-      method: "GET"
-    }).then(response => {
-      if (response.status === 200) {
-        return response.json();
-      }
-      return null;
-    }).then(data => {
-      if (data !== null) {
-        setRecords(data.content);
-        setTotalPages(data.totalPages);
-      }
-    });
+  const fetchRecords = async (page: number, size: number) => {
+    const response = await fetch(`http://localhost:8080/gym/records/page?page=${page}&size=${size}`);
+    if (response.status === 200) {
+      const data = await response.json();
+      setRecords(data.content);
+      setTotalPages(data.totalPages);
+    }
   };
 
-  const searchRecords = (query: string, page: number, size: number) => {
-    fetch(`http://localhost:8080/gym/records/search?query=${query}&page=${page}&size=${size}`, {
-      method: "GET"
-    }).then(response => {
-      if (response.status === 200) {
-        return response.json();
-      }
-      return null;
-    }).then(data => {
-      if (data !== null) {
-        setSearchResults(data.content);
-        setSearchTotalPages(data.totalPages);
-        setIsSearchModalOpen(true); // Modalı aç
-      }
-    });
-  };
-
-  React.useEffect(() => {
+  useEffect(() => {
     fetchRecords(currentPage - 1, rowsPerPage);
   }, [currentPage]);
 
-  const handleCreateSubmit = () => {
-    fetch("http://localhost:8080/gym/records", {
+  const handleCreateSubmit = async (exercise: string, weight: number): Promise<GymRecord> => {
+    const response = await fetch("http://localhost:8080/gym/records", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ exercise: newExercise, weight: newWeight })
-    }).then(response => {
-      if (response.status === 201) {
-        return response.json();
-      }
-      return null;
-    }).then(data => {
-      if (data !== null) {
-        setRecords([...records, data]);
-        setIsModalOpen(false);
-        setNewExercise('');
-        setNewWeight(0);
-      }
+      body: JSON.stringify({ exercise, weight })
     });
+    if (response.status === 201) {
+      const data = await response.json();
+      const lastPage = Math.ceil((records.length + 1) / rowsPerPage);
+      setCurrentPage(lastPage);
+      fetchRecords(lastPage - 1, rowsPerPage);
+      setIsModalOpen(false);
+      setNewExercise('');
+      setNewWeight(0);
+      return data;
+    }
+    throw new Error("Failed to create record");
   };
 
-  const handleUpdateSubmit = (recordToUpdate: GymRecord) => {
-    fetch(`http://localhost:8080/gym/records/${recordToUpdate.id}`, {
+  const handleUpdateSubmit = async (recordToUpdate: GymRecord) => {
+    const response = await fetch(`http://localhost:8080/gym/records/${recordToUpdate.id}`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ exercise: recordToUpdate.exercise, weight: recordToUpdate.weight })
-    }).then(response => {
-      if (response.status === 200) {
-        return response.json();
-      }
-      return null;
-    }).then(data => {
-      if (data !== null) {
-        setRecords(records.map(record => (record.id === data.id ? { ...record, exercise: data.exercise, weight: data.weight } : record)));
-      }
     });
+    if (response.status === 200) {
+      const data = await response.json();
+      setRecords(records.map(record => (record.id === data.id ? data : record)));
+    }
   };
 
-  const handleDeleteSubmit = (id: number) => {
-    fetch(`http://localhost:8080/gym/records/${id}`, {
+  const handleDeleteSubmit = async (id: number) => {
+    const response = await fetch(`http://localhost:8080/gym/records/${id}`, {
       method: "DELETE",
       headers: { "content-type": "application/json" }
-    }).then(response => {
-      if (response.status === 200) {
-        return response.json();
-      }
-      return null;
-    }).then(data => {
-      if (data !== null) {
-        setRecords(records.filter(record => record.id !== data.id));
-      }
     });
+    if (response.status === 200) {
+      const newRecords = records.filter(record => record.id !== id);
+      const newCurrentPage = (newRecords.length % rowsPerPage === 0 && currentPage > 1) ? currentPage - 1 : currentPage;
+      setCurrentPage(newCurrentPage);
+      fetchRecords(newCurrentPage - 1, rowsPerPage);
+    }
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-  };
-
-  const handleSearch = () => {
-    searchRecords(searchQuery, 0, searchRowsPerPage);
-    setSearchCurrentPage(1);
-  };
-
-  const handleSearchPageChange = (page: number) => {
-    setSearchCurrentPage(page);
-    searchRecords(searchQuery, page - 1, searchRowsPerPage);
   };
 
   return (
@@ -138,17 +88,14 @@ export function App() {
             content={records}
             onSubmitUpdate={handleUpdateSubmit}
             onSubmitDelete={handleDeleteSubmit}
+            onCreateRecord={handleCreateSubmit}
             onAddNewRecord={() => setIsModalOpen(true)}
             currentPage={currentPage}
             rowsPerPage={rowsPerPage}
             onPageChange={handlePageChange}
             totalPages={totalPages}
-            onSearch={handleSearch} // Arama fonksiyonunu ekleyin
-            searchResults={searchResults} // Arama sonuçlarını ekleyin
-            searchCurrentPage={searchCurrentPage}
-            searchTotalPages={searchTotalPages}
-            onSearchPageChange={handleSearchPageChange}
-            setIsSearchModalOpen={setIsSearchModalOpen}
+            setRecords={setRecords}
+            records={records}
           />
         </div>
       </VerticalContainer>
@@ -177,7 +124,7 @@ export function App() {
         }}
       >
         <h2>Yeni Kayıt Ekle</h2>
-        <form onSubmit={(e) => { e.preventDefault(); handleCreateSubmit(); }}>
+        <form onSubmit={(e) => { e.preventDefault(); handleCreateSubmit(newExercise, newWeight); }}>
           <input
             type="text"
             value={newExercise}
@@ -193,63 +140,6 @@ export function App() {
           <button type="submit">Kaydet</button>
           <button type="button" onClick={() => setIsModalOpen(false)}>İptal</button>
         </form>
-      </Modal>
-
-      <Modal
-        isOpen={isSearchModalOpen}
-        onRequestClose={() => setIsSearchModalOpen(false)}
-        contentLabel="Arama Sonuçları"
-        style={{
-          content: {
-            top: '50%',
-            left: '50%',
-            right: 'auto',
-            bottom: 'auto',
-            marginRight: '-50%',
-            transform: 'translate(-50%, -50%)',
-            width: '600px',
-            maxHeight: '80vh',
-            padding: '20px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
-            overflowY: 'auto'
-          },
-          overlay: {
-            backgroundColor: 'rgba(0, 0, 0, 0.5)'
-          }
-        }}
-      >
-        <h2>Arama Sonuçları</h2>
-        {searchResults.length > 0 ? (
-          <table className="content-box-table">
-            <thead>
-              <tr>
-                <th>No:</th>
-                <th>Egzersiz</th>
-                <th>Ağırlık (kg)</th>
-                <th>Tarih</th>
-              </tr>
-            </thead>
-            <tbody>
-              {searchResults.map((record, index) => (
-                <tr key={record.id}>
-                  <td>{(searchCurrentPage - 1) * searchRowsPerPage + index + 1}</td>
-                  <td>{record.exercise}</td>
-                  <td>{record.weight}</td>
-                  <td>{new Date(record.date).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>Arama kriterlerine uygun sonuç bulunamadı.</p>
-        )}
-        <Pagination
-          currentPage={searchCurrentPage}
-          totalPages={searchTotalPages}
-          onPageChange={handleSearchPageChange}
-        />
-        <button className="close-button" onClick={() => setIsSearchModalOpen(false)}>Kapat</button>
       </Modal>
     </div>
   );

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import Modal from "react-modal";
 import './ContentBox.css';
 import { GymRecord } from "../entities/GymRecord";
-import Pagination from "../pagination/Pagination"; // Pagination bileşenini içe aktar
+import Pagination from "../pagination/Pagination";
+import Search from "../search/Search";
 
 // Modal'ın erişim elemanını ayarlayın
 Modal.setAppElement('#root');
@@ -10,40 +11,39 @@ Modal.setAppElement('#root');
 interface ContentBoxProps {
     onSubmitDelete: (id: number) => void;
     onSubmitUpdate: (record: GymRecord) => void;
+    onCreateRecord: (exercise: string, weight: number) => Promise<GymRecord>;
     content: GymRecord[];
     onAddNewRecord?: () => void;
     currentPage: number;
     rowsPerPage: number;
     onPageChange: (page: number) => void;
-    totalPages: number; // Toplam sayfa sayısını ekleyin
-    onSearch: () => void; // Arama fonksiyonunu ekleyin
-    searchResults: GymRecord[]; // Arama sonuçlarını ekleyin
-    searchCurrentPage: number;
-    searchTotalPages: number;
-    onSearchPageChange: (page: number) => void;
-    setIsSearchModalOpen: (isOpen: boolean) => void; // Modal açma/kapatma fonksiyonu
+    totalPages: number;
+    setRecords: React.Dispatch<React.SetStateAction<GymRecord[]>>;
+    records: GymRecord[];
 }
 
 const ContentBox: React.FC<ContentBoxProps> = ({
     onSubmitDelete,
     onSubmitUpdate,
+    onCreateRecord,
     content,
     onAddNewRecord,
     currentPage,
     rowsPerPage,
     onPageChange,
     totalPages,
-    onSearch,
-    searchResults,
-    searchCurrentPage,
-    searchTotalPages,
-    onSearchPageChange,
-    setIsSearchModalOpen
+    setRecords,
+    records
 }) => {
-    const [record, setRecord] = React.useState<GymRecord | null>(null);
-    const [isModalOpen, setIsModalOpen] = React.useState(false);
-    const [searchQuery, setSearchQuery] = React.useState("");
-    const searchRowsPerPage = 10; // searchRowsPerPage değişkenini tanımlayın
+    const [record, setRecord] = useState<GymRecord | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [newExercise, setNewExercise] = useState('');
+    const [newWeight, setNewWeight] = useState(0);
+    const [searchResults, setSearchResults] = useState<GymRecord[]>([]);
+    const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+    const [searchCurrentPage, setSearchCurrentPage] = useState(1);
+    const [searchTotalPages, setSearchTotalPages] = useState(1);
+    const searchRowsPerPage = 10;
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
@@ -53,22 +53,66 @@ const ContentBox: React.FC<ContentBoxProps> = ({
         return `${year}/${month}/${day}`;
     };
 
-    const handleSubmitDelete = (id: number) => {
+    const handleSubmitDelete = async (id: number) => {
         if (window.confirm("Egzersizi silmek istediğinizden emin misiniz?")) {
-            onSubmitDelete(id);
+            await onSubmitDelete(id);
+            const response = await fetch(`http://localhost:8080/gym/records/page?page=${currentPage - 1}&size=${rowsPerPage}`);
+            if (response.status === 200) {
+                const data = await response.json();
+                setRecords(data.content);
+            }
         }
     };
 
-    const handleSubmitUpdate = () => {
+    const handleSubmitUpdate = async () => {
         if (record) {
-            onSubmitUpdate(record);
+            await onSubmitUpdate(record);
+            const response = await fetch(`http://localhost:8080/gym/records/page?page=${currentPage - 1}&size=${rowsPerPage}`);
+            if (response.status === 200) {
+                const data = await response.json();
+                setRecords(data.content);
+            }
             setIsModalOpen(false);
         }
     };
 
-    const handleSearch = () => {
-        onSearch();
-        setIsSearchModalOpen(true);
+    const searchRecords = async (query: string, page: number, size: number): Promise<{ results: GymRecord[], totalPages: number }> => {
+        const response = await fetch(`http://localhost:8080/gym/records/search?query=${query}&page=${page}&size=${size}`);
+        if (response.status === 200) {
+            const data = await response.json();
+            return { results: data.content, totalPages: data.totalPages };
+        }
+        return { results: [], totalPages: 0 };
+    };
+
+    const handleSearch = async (query: string, page: number, rowsPerPage: number): Promise<{ results: GymRecord[], totalPages: number }> => {
+        try {
+            const data = await searchRecords(query, page, rowsPerPage);
+            setSearchResults(data.results);
+            setSearchTotalPages(data.totalPages);
+            setSearchCurrentPage(page);
+            setIsSearchModalOpen(true);
+            return data;
+        } catch (error) {
+            console.error("Error during search:", error);
+            return { results: [], totalPages: 0 };
+        }
+    };
+
+    const handleSearchPageChange = async (page: number) => {
+        try {
+            const query = searchResults.length > 0 ? searchResults[0].exercise : "";
+            const data = await searchRecords(query, page, searchRowsPerPage);
+            setSearchResults(data.results);
+            setSearchCurrentPage(page);
+        } catch (error) {
+            console.error("Error during search page change:", error);
+        }
+    };
+
+    const handleCloseSearchModal = () => {
+        setIsSearchModalOpen(false);
+        setSearchResults([]);
     };
 
     return (
@@ -77,15 +121,7 @@ const ContentBox: React.FC<ContentBoxProps> = ({
                 Yeni Kayıt Ekle
             </button>
             <div className="search-container">
-                <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Egzersiz adı ile ara"
-                />
-                <button className="search-button" onClick={handleSearch}>
-                    Ara
-                </button>
+                <Search onSearch={handleSearch} />
             </div>
             <div className="content-box-body">
                 <table className="content-box-table">
@@ -126,10 +162,9 @@ const ContentBox: React.FC<ContentBoxProps> = ({
                 />
             </div>
 
-            {/* Arama Sonuçları Modalı */}
             <Modal
-                isOpen={true}
-                onRequestClose={() => setIsSearchModalOpen(false)}
+                isOpen={isSearchModalOpen}
+                onRequestClose={handleCloseSearchModal}
                 contentLabel="Arama Sonuçları"
                 style={{
                     content: {
@@ -179,12 +214,11 @@ const ContentBox: React.FC<ContentBoxProps> = ({
                 <Pagination
                     currentPage={searchCurrentPage}
                     totalPages={searchTotalPages}
-                    onPageChange={onSearchPageChange}
+                    onPageChange={handleSearchPageChange}
                 />
-                <button className="close-button" onClick={() => setIsSearchModalOpen(false)}>Kapat</button>
+                <button className="close-button" onClick={handleCloseSearchModal}>Kapat</button>
             </Modal>
 
-            {/* Güncelleme Modalı */}
             <Modal
                 isOpen={isModalOpen}
                 onRequestClose={() => setIsModalOpen(false)}
@@ -214,13 +248,13 @@ const ContentBox: React.FC<ContentBoxProps> = ({
                         <input
                             type="text"
                             value={record.exercise}
-                            onChange={(e) => setRecord({ ...record, exercise: e.target.value })}
+                            onChange={(e) => setRecord({ ...record, exercise: e.target.value } as GymRecord)}
                             placeholder="Egzersiz adı"
                         />
                         <input
                             type="number"
                             value={record.weight}
-                            onChange={(e) => setRecord({ ...record, weight: parseInt(e.target.value, 10) })}
+                            onChange={(e) => setRecord({ ...record, weight: parseInt(e.target.value, 10) } as GymRecord)}
                             placeholder="Ağırlık (kg)"
                         />
                         <div className="modal-form-buttons">
